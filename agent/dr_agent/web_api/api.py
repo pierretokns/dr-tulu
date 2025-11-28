@@ -204,12 +204,23 @@ class SSECallback:
             self.thinking_segment_id += 1
 
 
-def create_app(workflow_instance: BaseWorkflow) -> FastAPI:
+def create_app(
+    workflow_instance: BaseWorkflow,
+    ui_mode: str = "auto",
+    dev_url: Optional[str] = None,
+) -> FastAPI:
     """
     Create a FastAPI app configured to serve the given workflow.
 
     Args:
         workflow_instance: A BaseWorkflow instance to serve
+        ui_mode: Mode for serving UI. Options:
+            - "auto" (default): Use pre-compiled if available, otherwise show instructions
+            - "precompiled": Only use pre-compiled files (error if not available)
+            - "dev": Show instructions to run dev server separately
+            - "proxy": Show redirect to dev server (requires dev_url)
+        dev_url: URL of the development server (e.g., "http://localhost:3000")
+                 Only used when ui_mode is "proxy"
 
     Returns:
         Configured FastAPI application
@@ -227,6 +238,7 @@ def create_app(workflow_instance: BaseWorkflow) -> FastAPI:
 
     # Store workflow in app state
     app.state.workflow = workflow_instance
+    app.state.ui_mode = ui_mode
 
     async def run_workflow_with_streaming(
         content: str,
@@ -343,6 +355,27 @@ def create_app(workflow_instance: BaseWorkflow) -> FastAPI:
     @app.get("/health")
     async def health_check():
         """Health check endpoint."""
-        return {"status": "ok", "workflow_loaded": app.state.workflow is not None}
+        return {
+            "status": "ok",
+            "workflow_loaded": app.state.workflow is not None,
+            "ui_mode": ui_mode,
+        }
+
+    # Mount UI files if available
+    try:
+        from dr_agent_ui.server import mount_ui
+
+        ui_mounted = mount_ui(app, ui_mode=ui_mode, dev_url=dev_url)
+        if ui_mounted:
+            print(f"✓ UI mounted successfully in '{ui_mode}' mode")
+        else:
+            print(f"ℹ UI not mounted (mode: {ui_mode}). API endpoints are available.")
+    except ImportError:
+        print(
+            "ℹ dr_agent_ui not installed. Install it to enable the web interface: "
+            "pip install dr-agent-ui"
+        )
+    except Exception as e:
+        print(f"⚠ Failed to mount UI: {e}")
 
     return app

@@ -1196,6 +1196,11 @@ class BaseWorkflow(ABC):
                 "--host",
                 help="Host to bind the server to",
             ),
+            ui_mode: str = typer.Option(
+                "auto",
+                "--ui-mode",
+                help="UI mode to use",
+            ),
             config_file: Optional[str] = typer.Option(
                 None,
                 "--config",
@@ -1260,7 +1265,7 @@ class BaseWorkflow(ABC):
             cls.__logger__.info("Workflow initialized successfully")
 
             # Create FastAPI app
-            fastapi_app = create_app(workflow)
+            fastapi_app = create_app(workflow, ui_mode=ui_mode)
 
             # Start server
             cls.__logger__.info(f"Starting server at http://{host}:{port}")
