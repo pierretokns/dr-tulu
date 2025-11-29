@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dr-agent-ui"
-version = "0.1.0"
+version = "0.1.0.post1"
 description = "Pre-compiled web interface for DR-Agent workflows"
 authors = [
     {name = "Shannon Shen", email = "zejiang@gmail.com"},

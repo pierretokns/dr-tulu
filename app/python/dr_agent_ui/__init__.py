@@ -9,7 +9,7 @@ Node.js frontend server.
 import os
 from pathlib import Path
 
-__version__ = "0.1.0"
+__version__ = "0.1.0.post1"
 
 # Path to the static files directory
 STATIC_DIR = Path(__file__).parent / "static"
