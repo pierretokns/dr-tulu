@@ -1,0 +1,32 @@
+tool_parser: "v20250824"
+
+# Use cloud cost researcher prompt
+prompt_version: "cloud_cost"
+
+# Client config for the SearchAgent - Using Ollama on macOS
+search_agent_base_url: "http://localhost:11434/v1"
+search_agent_model_name: "tulu3:8b"
+search_agent_tokenizer_name: "allenai/Llama-3.1-Tulu-3-8B"
+search_agent_api_key: "ollama"
+search_agent_max_tokens: 16000
+search_agent_temperature: 0.7
+search_agent_max_tool_calls: 20  # More tool calls for comprehensive research
+
+# Client config for the browse/reader agent
+use_browse_agent: false
+browse_agent_base_url: "http://localhost:11434/v1"
+browse_agent_model_name: "tulu3:8b"
+browse_agent_tokenizer_name: "allenai/Llama-3.1-Tulu-3-8B"
+browse_agent_api_key: "ollama"
+browse_agent_max_tokens: 16000
+browse_agent_temperature: 0.3
+
+# Search tool configuration
+number_documents_to_search: 15  # More documents for cost comparison
+search_timeout: 180
+
+# Browse tool configuration
+browse_tool_name: "jina"
+browse_timeout: 180
+browse_max_pages_to_fetch: 15
+browse_context_char_length: 8000

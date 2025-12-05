@@ -188,6 +188,14 @@ class LLMToolClient:
         all_commercial_patterns = (
             openai_patterns + claude_patterns + commercial_patterns
         )
+        # If a base_url is provided, assume we're talking to a commercial/OpenAI-compatible
+        # API (e.g., Ollama, LM Studio) and use the commercial API code path.
+        try:
+            if getattr(self, "base_url", None):
+                return True
+        except Exception:
+            pass
+
         model_lower = model_name.lower()
 
         return any(pattern in model_lower for pattern in all_commercial_patterns)

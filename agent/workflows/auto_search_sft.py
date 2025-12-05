@@ -95,6 +95,12 @@ class SearchAgent(BaseAgent):
             instruction_field_name = "long_form"
         elif dataset_name in ["healthbench", "deep_research_bench", "researchqa"]:
             instruction_field_name = "short_form"
+        elif dataset_name in ["cloud_cost", "cloud_cost_analysis"]:
+            instruction_field_name = "cloud_cost_analysis"
+        elif dataset_name in ["quick_comparison"]:
+            instruction_field_name = "quick_comparison"
+        elif dataset_name in ["managed_services", "managed_services_focus"]:
+            instruction_field_name = "managed_services_focus"
         elif dataset_name and "sft-mix" in dataset_name:
             if "short_form" in dataset_name:
                 instruction_field_name = "exact_answer"
