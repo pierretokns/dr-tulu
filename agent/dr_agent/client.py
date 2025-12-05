@@ -375,6 +375,18 @@ class LLMToolClient:
         Returns:
             GenerateWithToolsOutput: Contains tool calls, generated text, token counts, etc.
         """
+        import sys
+        from datetime import datetime
+        import time
+
+        print(f"[{datetime.now().isoformat()}] [DEBUG] LLMToolClient.generate_with_tools started", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Tool calling mode: {tool_calling_mode}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Max tool calls: {max_tool_calls}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Model: {self.model_name}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Base URL: {self.base_url}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Is commercial API: {self.is_commercial_api_model}", file=sys.stderr)
+
+        start_time = time.time()
 
         async with LLMToolClient._global_semaphore:
             # Route to native tool calling if requested
@@ -664,6 +676,13 @@ class LLMToolClient:
         **kwargs,
     ) -> GenerateWithToolsOutput:
         """Generate response for self-hosted models (vLLM) using text completion API"""
+        import sys
+        from datetime import datetime
+        import time
+
+        print(f"[{datetime.now().isoformat()}] [DEBUG] _generate_with_tools_vllm started", file=sys.stderr)
+
+        vllm_start = time.time()
 
         if isinstance(prompt_or_messages, str):
             prompt = prompt_or_messages
@@ -1187,7 +1206,16 @@ class LLMToolClient:
         if verbose:
             print(f"Calling litellm with {len(tools)} tools")
 
+        print(f"[{datetime.now().isoformat()}] [DEBUG] About to call litellm.acompletion (native)", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Model: {params.get('model', 'unknown')}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Messages count: {len(params.get('messages', []))}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Max tokens: {params.get('max_tokens', 'not set')}", file=sys.stderr)
+
+        litellm_start = time.time()
         response = await litellm.acompletion(**params)
+        litellm_elapsed = time.time() - litellm_start
+
+        print(f"[{datetime.now().isoformat()}] [DEBUG] litellm.acompletion (native) completed in {litellm_elapsed:.2f}s", file=sys.stderr)
         return response
 
     @retry(
@@ -1246,10 +1274,21 @@ class LLMToolClient:
         params.update(kwargs)
         # print(params)
 
+        print(f"[{datetime.now().isoformat()}] [DEBUG] About to call litellm.acompletion (commercial)", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Model: {params.get('model', 'unknown')}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Messages count: {len(params.get('messages', []))}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Max tokens: {params.get('max_tokens', 'not set')}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Temperature: {params.get('temperature', 'not set')}", file=sys.stderr)
+
         try:
+            litellm_start = time.time()
             response = await litellm.acompletion(**params)
+            litellm_elapsed = time.time() - litellm_start
+            print(f"[{datetime.now().isoformat()}] [DEBUG] litellm.acompletion (commercial) completed in {litellm_elapsed:.2f}s", file=sys.stderr)
+
             original_content = response.choices[0].message.content or ""
             content = original_content
+            print(f"[{datetime.now().isoformat()}] [DEBUG] Response content length: {len(content)}", file=sys.stderr)
 
             # Extract reasoning content if available and requested
             reasoning_content = None
@@ -1339,11 +1378,14 @@ class LLMToolClient:
 
             return content
         except asyncio.TimeoutError:
+            print(f"[{datetime.now().isoformat()}] [ERROR] Request timed out after {config.timeout} seconds", file=sys.stderr)
             raise asyncio.TimeoutError(
                 f"Request timed out after {config.timeout} seconds"
             )
         except Exception as e:
-            print(f"API call failed: {e}")
+            print(f"[{datetime.now().isoformat()}] [ERROR] API call failed: {type(e).__name__}: {str(e)}", file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
             raise Exception(f"API call failed: {e}")
 
     @retry(
@@ -1411,19 +1453,35 @@ class LLMToolClient:
         params.update(kwargs)
         params["include_stop_str_in_output"] = True
 
+        print(f"[{datetime.now().isoformat()}] [DEBUG] About to call litellm.atext_completion (vLLM)", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Model: {params.get('model', 'unknown')}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Prompt length: {len(params.get('prompt', ''))}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Max tokens: {params.get('max_tokens', 'not set')}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Temperature: {params.get('temperature', 'not set')}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] API base: {params.get('api_base', 'not set')}", file=sys.stderr)
+
         try:
+            litellm_start = time.time()
             response = await litellm.atext_completion(**params)
-            return (
+            litellm_elapsed = time.time() - litellm_start
+            print(f"[{datetime.now().isoformat()}] [DEBUG] litellm.atext_completion (vLLM) completed in {litellm_elapsed:.2f}s", file=sys.stderr)
+
+            result_text = (
                 response.choices[0].text
                 if hasattr(response.choices[0], "text")
                 else response.choices[0].message.content or ""
             )
+            print(f"[{datetime.now().isoformat()}] [DEBUG] Response text length: {len(result_text)}", file=sys.stderr)
+            return result_text
         except asyncio.TimeoutError:
+            print(f"[{datetime.now().isoformat()}] [ERROR] Request timed out after {config.timeout} seconds", file=sys.stderr)
             raise asyncio.TimeoutError(
                 f"Request timed out after {config.timeout} seconds"
             )
         except Exception as e:
-            print(f"API call failed: {e}")
+            print(f"[{datetime.now().isoformat()}] [ERROR] API call failed: {type(e).__name__}: {str(e)}", file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
             raise Exception(f"API call failed: {e}")
 
     # Keep the old method name for backward compatibility, but delegate to vLLM implementation

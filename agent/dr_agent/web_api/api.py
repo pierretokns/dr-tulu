@@ -247,18 +247,42 @@ def create_app(
         messages: Optional[List[Dict[str, str]]] = None,
     ):
         """Run the workflow and stream events via the queue."""
+        import sys
+        from datetime import datetime
+        import time
+
+        print(f"[{datetime.now().isoformat()}] [DEBUG] run_workflow_with_streaming started", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Content length: {len(content)}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Dataset: {dataset_name}", file=sys.stderr)
+
+        streaming_start = time.time()
+
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Creating SSECallback", file=sys.stderr)
         callback = SSECallback(event_queue)
 
         # Send started event
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Sending 'started' event", file=sys.stderr)
         await event_queue.put(f'data: {{"type": "started"}}\n\n')
 
-        result = await app.state.workflow(
-            problem=content,
-            dataset_name=dataset_name,
-            messages=messages,
-            verbose=False,
-            step_callback=callback,
-        )
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Calling workflow", file=sys.stderr)
+        workflow_start = time.time()
+        try:
+            result = await app.state.workflow(
+                problem=content,
+                dataset_name=dataset_name,
+                messages=messages,
+                verbose=False,
+                step_callback=callback,
+            )
+            workflow_elapsed = time.time() - workflow_start
+            print(f"[{datetime.now().isoformat()}] [DEBUG] Workflow completed in {workflow_elapsed:.2f}s", file=sys.stderr)
+            print(f"[{datetime.now().isoformat()}] [DEBUG] Final response length: {len(result.get('final_response', ''))}", file=sys.stderr)
+        except Exception as e:
+            print(f"[{datetime.now().isoformat()}] [ERROR] Workflow failed: {type(e).__name__}: {str(e)}", file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+            await event_queue.put(f'data: {json.dumps({"type": "error", "message": str(e)})}\n\n')
+            return
 
         # Send final answer if available
         final_response = result.get("final_response", "")
@@ -291,7 +315,19 @@ def create_app(
         Client sends: { "content": "...", "dataset_name": "..." }
         Server streams: SSE events for thinking, tool_call, answer, done, error
         """
+        import sys
+        from datetime import datetime
+        import time
+
+        print(f"[{datetime.now().isoformat()}] [DEBUG] /chat/stream endpoint called", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Content: {request.content[:100] if request.content else 'None'}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Messages count: {len(request.messages) if request.messages else 0}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Dataset name: {request.dataset_name}", file=sys.stderr)
+
+        stream_start = time.time()
+
         if app.state.workflow is None:
+            print(f"[{datetime.now().isoformat()}] [ERROR] Workflow not initialized", file=sys.stderr)
             return StreamingResponse(
                 iter(
                     [
@@ -301,6 +337,7 @@ def create_app(
                 media_type="text/event-stream",
             )
 
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Workflow initialized, creating event queue", file=sys.stderr)
         event_queue: asyncio.Queue = asyncio.Queue()
 
         # Prepare messages
@@ -323,23 +360,42 @@ def create_app(
             messages_dicts = [{"role": "user", "content": content}]
 
         async def event_generator():
+            print(f"[{datetime.now().isoformat()}] [DEBUG] Starting event_generator", file=sys.stderr)
+            print(f"[{datetime.now().isoformat()}] [DEBUG] Content for workflow: {content[:100]}", file=sys.stderr)
+
             # Start the workflow in a background task
+            print(f"[{datetime.now().isoformat()}] [DEBUG] Creating workflow task", file=sys.stderr)
+            task_start = time.time()
             task = asyncio.create_task(
                 run_workflow_with_streaming(
                     content, request.dataset_name, event_queue, messages=messages_dicts
                 )
             )
+            print(f"[{datetime.now().isoformat()}] [DEBUG] Workflow task created in {time.time() - task_start:.2f}s", file=sys.stderr)
 
             try:
+                event_count = 0
                 while True:
+                    print(f"[{datetime.now().isoformat()}] [DEBUG] Waiting for event from queue", file=sys.stderr)
+                    event_start = time.time()
                     event = await event_queue.get()
+                    event_wait = time.time() - event_start
+                    print(f"[{datetime.now().isoformat()}] [DEBUG] Got event in {event_wait:.2f}s, event_count: {event_count}", file=sys.stderr)
+
                     if event is None:  # Completion signal
+                        print(f"[{datetime.now().isoformat()}] [DEBUG] Received completion signal", file=sys.stderr)
                         break
+
+                    event_count += 1
                     yield event
             except asyncio.CancelledError:
+                print(f"[{datetime.now().isoformat()}] [ERROR] Event generator cancelled", file=sys.stderr)
                 task.cancel()
                 raise
             except Exception as e:
+                print(f"[{datetime.now().isoformat()}] [ERROR] Event generator error: {type(e).__name__}: {str(e)}", file=sys.stderr)
+                import traceback
+                traceback.print_exc(file=sys.stderr)
                 yield f'data: {json.dumps({"type": "error", "message": str(e)})}\n\n'
 
         return StreamingResponse(

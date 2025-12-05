@@ -77,9 +77,52 @@ class SearchAgent(BaseAgent):
         dataset_name: Optional[str] = None,
         history: Optional[List[Dict[str, str]]] = None,
     ) -> str:
+        import sys
+        from datetime import datetime
 
-        PROMPT = UNIFIED_TOOL_CALLING_STRUCTURED_PROMPTS[self.prompt_version]
-        system_prompt = PROMPT["system_prompt"]
+        print(f"[{datetime.now().isoformat()}] [DEBUG] SearchAgent.prompt started", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Prompt version: {self.prompt_version}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Dataset name: {dataset_name}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Question length: {len(question)}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] History length: {len(history) if history else 0}", file=sys.stderr)
+
+        try:
+            PROMPT = UNIFIED_TOOL_CALLING_STRUCTURED_PROMPTS[self.prompt_version]
+            system_prompt = PROMPT["system_prompt"]
+            print(f"[{datetime.now().isoformat()}] [DEBUG] Successfully loaded prompt template", file=sys.stderr)
+            print(f"[{datetime.now().isoformat()}] [DEBUG] System prompt length: {len(system_prompt)}", file=sys.stderr)
+        except KeyError as e:
+            print(f"[{datetime.now().isoformat()}] [ERROR] Failed to load prompt version {self.prompt_version}: {e}", file=sys.stderr)
+
+            # Defense in depth: Try to load cloud_cost prompt if that's what's missing
+            if self.prompt_version == "cloud_cost" and "cloud_cost" not in UNIFIED_TOOL_CALLING_STRUCTURED_PROMPTS:
+                print(f"[{datetime.now().isoformat()}] [INFO] Attempting to load cloud_cost prompt dynamically", file=sys.stderr)
+                try:
+                    from pathlib import Path
+                    import yaml
+
+                    cloud_cost_path = Path(__file__).parent.parent / "dr_agent" / "shared_prompts" / "cloud_cost_researcher.yaml"
+                    if cloud_cost_path.exists():
+                        print(f"[{datetime.now().isoformat()}] [INFO] Loading cloud_cost prompt from {cloud_cost_path}", file=sys.stderr)
+                        with open(cloud_cost_path, "r", encoding="utf-8") as file:
+                            CLOUD_COST_RESEARCHER_PROMPT = yaml.safe_load(file)
+                        UNIFIED_TOOL_CALLING_STRUCTURED_PROMPTS["cloud_cost"] = CLOUD_COST_RESEARCHER_PROMPT
+                        print(f"[{datetime.now().isoformat()}] [INFO] cloud_cost prompt loaded successfully", file=sys.stderr)
+                        PROMPT = UNIFIED_TOOL_CALLING_STRUCTURED_PROMPTS["cloud_cost"]
+                        system_prompt = PROMPT["system_prompt"]
+                    else:
+                        print(f"[{datetime.now().isoformat()}] [ERROR] cloud_cost_researcher.yaml not found at {cloud_cost_path}", file=sys.stderr)
+                        raise FileNotFoundError(f"cloud_cost_researcher.yaml not found at {cloud_cost_path}")
+                except Exception as load_error:
+                    print(f"[{datetime.now().isoformat()}] [ERROR] Failed to load cloud_cost prompt: {load_error}", file=sys.stderr)
+                    raise
+            else:
+                # For other missing prompts or if cloud_cost loading failed
+                print(f"[{datetime.now().isoformat()}] [ERROR] Available prompt versions: {list(UNIFIED_TOOL_CALLING_STRUCTURED_PROMPTS.keys())}", file=sys.stderr)
+                raise
+        except Exception as e:
+            print(f"[{datetime.now().isoformat()}] [ERROR] Unexpected error loading prompt: {type(e).__name__}: {str(e)}", file=sys.stderr)
+            raise
 
         if dataset_name in [
             "2wiki",
@@ -97,26 +140,33 @@ class SearchAgent(BaseAgent):
             instruction_field_name = "short_form"
         elif dataset_name in ["cloud_cost", "cloud_cost_analysis"]:
             instruction_field_name = "cloud_cost_analysis"
+            print(f"[{datetime.now().isoformat()}] [DEBUG] Using cloud_cost_analysis instruction for dataset: {dataset_name}", file=sys.stderr)
         elif dataset_name in ["quick_comparison"]:
             instruction_field_name = "quick_comparison"
+            print(f"[{datetime.now().isoformat()}] [DEBUG] Using quick_comparison instruction for dataset: {dataset_name}", file=sys.stderr)
         elif dataset_name in ["managed_services", "managed_services_focus"]:
             instruction_field_name = "managed_services_focus"
+            print(f"[{datetime.now().isoformat()}] [DEBUG] Using managed_services_focus instruction for dataset: {dataset_name}", file=sys.stderr)
         elif dataset_name and "sft-mix" in dataset_name:
             if "short_form" in dataset_name:
                 instruction_field_name = "exact_answer"
+                print(f"[{datetime.now().isoformat()}] [DEBUG] Using exact_answer instruction for SFT mix short_form", file=sys.stderr)
             elif "long_form" in dataset_name:
                 instruction_field_name = "long_form"  # or "short_form"?
+                print(f"[{datetime.now().isoformat()}] [DEBUG] Using long_form instruction for SFT mix long_form", file=sys.stderr)
             else:
-                raise ValueError(
-                    f"Unclear which instruction field name to use for the sft mix dataset: {dataset_name}"
-                )
+                error_msg = f"Unclear which instruction field name to use for the sft mix dataset: {dataset_name}"
+                print(f"[{datetime.now().isoformat()}] [ERROR] {error_msg}", file=sys.stderr)
+                raise ValueError(error_msg)
         else:
             if "short_form" in str(dataset_name):
                 instruction_field_name = "exact_answer"
+                print(f"[{datetime.now().isoformat()}] [DEBUG] Using exact_answer instruction based on short_form keyword", file=sys.stderr)
             elif "long_form" in str(dataset_name):
                 instruction_field_name = "long_form"
+                print(f"[{datetime.now().isoformat()}] [DEBUG] Using long_form instruction based on long_form keyword", file=sys.stderr)
             else:
-                print("set additional instructions none")
+                print(f"[{datetime.now().isoformat()}] [DEBUG] No additional instructions set for dataset: {dataset_name}", file=sys.stderr)
                 instruction_field_name = None
 
         messages = [
@@ -129,18 +179,32 @@ class SearchAgent(BaseAgent):
         if history:
             messages.extend(history)
 
+        user_content = (
+            question
+            + "\n\n"
+            + PROMPT["additional_instructions"][instruction_field_name]
+            if instruction_field_name is not None
+            else question
+        )
+
+        print(f"[{datetime.now().isoformat()}] [DEBUG] User content length: {len(user_content)}", file=sys.stderr)
+        if instruction_field_name:
+            print(f"[{datetime.now().isoformat()}] [DEBUG] Instruction field: {instruction_field_name}", file=sys.stderr)
+            if instruction_field_name in PROMPT["additional_instructions"]:
+                print(f"[{datetime.now().isoformat()}] [DEBUG] Additional instructions found, length: {len(PROMPT['additional_instructions'][instruction_field_name])}", file=sys.stderr)
+            else:
+                print(f"[{datetime.now().isoformat()}] [ERROR] Instruction field {instruction_field_name} not found in additional_instructions!", file=sys.stderr)
+
         messages.append(
             {
                 "role": "user",
-                "content": (
-                    question
-                    + "\n\n"
-                    + PROMPT["additional_instructions"][instruction_field_name]
-                    if instruction_field_name is not None
-                    else question
-                ),
+                "content": user_content,
             }
         )
+
+        total_messages = len(messages)
+        total_chars = sum(len(msg["content"]) for msg in messages)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Total messages: {total_messages}, Total characters: {total_chars}", file=sys.stderr)
 
         return messages
 
@@ -309,7 +373,21 @@ class AutoReasonSearchWorkflow(BaseWorkflow):
     ) -> None:
         cfg = self.configuration
         assert cfg is not None
-        # print(cfg)
+
+        # Debug configuration loading
+        import sys
+        from datetime import datetime
+        print(f"[{datetime.now().isoformat()}] [DEBUG] === setup_components called ===", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Configuration type: {type(cfg)}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Configuration dict: {cfg.__dict__ if hasattr(cfg, '__dict__') else 'No __dict__'}", file=sys.stderr)
+
+        # Check if it's a dataclass or dict
+        if hasattr(cfg, 'prompt_version'):
+            print(f"[{datetime.now().isoformat()}] [DEBUG] cfg.prompt_version (attribute): {cfg.prompt_version}", file=sys.stderr)
+        if hasattr(cfg, '__dict__') and 'prompt_version' in cfg.__dict__:
+            print(f"[{datetime.now().isoformat()}] [DEBUG] cfg.__dict__['prompt_version']: {cfg.__dict__['prompt_version']}", file=sys.stderr)
+
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Configuration keys: {list(cfg.__dict__.keys()) if hasattr(cfg, '__dict__') else 'Not a dict-like'}", file=sys.stderr)
 
         # Allow configuration overrides for MCP settings
         if getattr(cfg, "mcp_transport_type", None):
@@ -450,15 +528,19 @@ class AutoReasonSearchWorkflow(BaseWorkflow):
             base_url=cfg.search_agent_base_url,
             api_key=cfg.search_agent_api_key,
         ) as client:
+            # Debug: Print prompt_version being passed to agents
+            print(f"[{datetime.now().isoformat()}] [DEBUG] Creating SearchAgent with prompt_version: {cfg.prompt_version}", file=sys.stderr)
             self.search_agent = SearchAgent(
                 client=client,
                 tools=[self.search_tool, self.search_tool2, self.composed_browse_tool],
                 prompt_version=cfg.prompt_version,
             )
+            print(f"[{datetime.now().isoformat()}] [DEBUG] SearchAgent created with prompt_version: {self.search_agent.prompt_version}", file=sys.stderr)
             self.answer_agent = AnswerAgent(
                 client=client,
                 prompt_version=cfg.prompt_version,
             )
+            print(f"[{datetime.now().isoformat()}] [DEBUG] AnswerAgent created with prompt_version: {self.answer_agent.prompt_version}", file=sys.stderr)
 
     async def __call__(
         self,
@@ -469,12 +551,26 @@ class AutoReasonSearchWorkflow(BaseWorkflow):
         search_callback: Optional[Any] = None,
         step_callback: Optional[Any] = None,
     ) -> Dict[str, Any]:
+        import sys
+        import time
+        from datetime import datetime
+
+        print(f"[{datetime.now().isoformat()}] [DEBUG] AutoReasonSearchWorkflow.__call__ started", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Input problem: {problem[:100]}...", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Dataset name: {dataset_name}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Messages provided: {messages is not None}", file=sys.stderr)
+
+        start_time = time.time()
+
         cfg = self.configuration
         assert cfg is not None
+
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Configuration loaded successfully", file=sys.stderr)
 
         # Extract history and problem from messages if provided
         history = []
         if messages:
+            print(f"[{datetime.now().isoformat()}] [DEBUG] Processing {len(messages)} messages", file=sys.stderr)
             # Find the last user message as the problem
             last_user_idx = -1
             for i in range(len(messages) - 1, -1, -1):
@@ -485,9 +581,11 @@ class AutoReasonSearchWorkflow(BaseWorkflow):
             if last_user_idx != -1:
                 problem = messages[last_user_idx]["content"]
                 history = messages[:last_user_idx]
+                print(f"[{datetime.now().isoformat()}] [DEBUG] Extracted problem from messages: {problem[:100]}...", file=sys.stderr)
             else:
                 # Fallback if no user message found (shouldn't happen ideally)
                 history = messages
+                print(f"[{datetime.now().isoformat()}] [DEBUG] No user message found, using all messages as history", file=sys.stderr)
 
         # import litellm
         # litellm._turn_on_debug()
@@ -495,25 +593,48 @@ class AutoReasonSearchWorkflow(BaseWorkflow):
         # Set the question for the browse agent
         # TODO: This is a bit hectic and hacky, but it works for now
         # The problem: it uses a bad way to enable the runtime dynamics
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Setting up browse tool for problem", file=sys.stderr)
         if isinstance(self.composed_browse_tool, ChainedTool):
             browse_tool = self.composed_browse_tool.tools[0]
             browse_tool.bm25_query = problem
             browse_agent = self.composed_browse_tool.tools[-1]
             browse_agent.agent.question = problem
+            print(f"[{datetime.now().isoformat()}] [DEBUG] Using chained browse tool", file=sys.stderr)
         else:
             browse_tool = self.composed_browse_tool
             browse_tool.bm25_query = problem
+            print(f"[{datetime.now().isoformat()}] [DEBUG] Using direct browse tool", file=sys.stderr)
 
-        results = await self.search_agent(
-            question=problem,
-            dataset_name=dataset_name,
-            history=history,
-            max_tokens=cfg.search_agent_max_tokens,
-            temperature=cfg.search_agent_temperature,
-            max_tool_calls=cfg.search_agent_max_tool_calls,
-            verbose=verbose,
-            on_step_callback=step_callback,
-        )
+        print(f"[{datetime.now().isoformat()}] [DEBUG] Calling search_agent with max_tokens={cfg.search_agent_max_tokens}, temperature={cfg.search_agent_temperature}", file=sys.stderr)
+        search_start = time.time()
+
+        try:
+            results = await self.search_agent(
+                question=problem,
+                dataset_name=dataset_name,
+                history=history,
+                max_tokens=cfg.search_agent_max_tokens,
+                temperature=cfg.search_agent_temperature,
+                max_tool_calls=cfg.search_agent_max_tool_calls,
+                verbose=verbose,
+                on_step_callback=step_callback,
+            )
+            search_elapsed = time.time() - search_start
+            print(f"[{datetime.now().isoformat()}] [DEBUG] search_agent completed in {search_elapsed:.2f}s", file=sys.stderr)
+            print(f"[{datetime.now().isoformat()}] [DEBUG] Generated text length: {len(results.generated_text) if results.generated_text else 0}", file=sys.stderr)
+            print(f"[{datetime.now().isoformat()}] [DEBUG] Tool calls made: {len(results.tool_calls) if results.tool_calls else 0}", file=sys.stderr)
+
+            # Debug: Show first 500 chars of generated text
+            if results.generated_text:
+                preview = results.generated_text[:500].replace('\n', '\\n')
+                print(f"[{datetime.now().isoformat()}] [DEBUG] Generated text preview: {preview}...", file=sys.stderr)
+                print(f"[{datetime.now().isoformat()}] [DEBUG] Contains <answer>: {'<answer>' in results.generated_text}", file=sys.stderr)
+                print(f"[{datetime.now().isoformat()}] [DEBUG] Contains <call_tool>: {'<call_tool' in results.generated_text}", file=sys.stderr)
+        except Exception as e:
+            print(f"[{datetime.now().isoformat()}] [ERROR] search_agent failed: {type(e).__name__}: {str(e)}", file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+            raise
 
         if search_callback:
             if asyncio.iscoroutinefunction(search_callback):
