@@ -70,6 +70,7 @@ Can you clean the raw webpage text and convert it into a more readable format? Y
 @dataclass
 class SearchAgent(BaseAgent):
     prompt_version: str = "v20250907"
+    tool_calling_mode: str = "parser"
 
     def prompt(
         self,
@@ -337,6 +338,7 @@ class AutoReasonSearchWorkflow(BaseWorkflow):
         search_agent_max_tokens: int = 32000
         search_agent_temperature: float = 0.7
         search_agent_max_tool_calls: int = 10
+        search_agent_tool_calling_mode: str = "parser"
 
         use_browse_agent: bool = False
         browse_agent_base_url: Optional[str] = None
@@ -534,6 +536,7 @@ class AutoReasonSearchWorkflow(BaseWorkflow):
                 client=client,
                 tools=[self.search_tool, self.search_tool2, self.composed_browse_tool],
                 prompt_version=cfg.prompt_version,
+                tool_calling_mode=getattr(cfg, 'search_agent_tool_calling_mode', 'parser'),
             )
             print(f"[{datetime.now().isoformat()}] [DEBUG] SearchAgent created with prompt_version: {self.search_agent.prompt_version}", file=sys.stderr)
             self.answer_agent = AnswerAgent(
@@ -616,6 +619,7 @@ class AutoReasonSearchWorkflow(BaseWorkflow):
                 max_tokens=cfg.search_agent_max_tokens,
                 temperature=cfg.search_agent_temperature,
                 max_tool_calls=cfg.search_agent_max_tool_calls,
+                tool_calling_mode=getattr(cfg, 'search_agent_tool_calling_mode', 'parser'),
                 verbose=verbose,
                 on_step_callback=step_callback,
             )

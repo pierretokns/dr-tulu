@@ -5,6 +5,7 @@ search_agent_base_url: "http://localhost:11434/v1"
 search_agent_model_name: "cow/tulu3_tools:8b"
 search_agent_tokenizer_name: "cow/tulu3_tools:8b"
 search_agent_api_key: "ollama-dummy-key"
+search_agent_tool_calling_mode: "native"
 search_agent_max_tokens: 16000
 search_agent_temperature: 1.0
 search_agent_max_tool_calls: 10
