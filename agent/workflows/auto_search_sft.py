@@ -21,8 +21,8 @@ from dr_agent.tool_interface.mcp_tools import (
 )
 from dr_agent.workflow import BaseWorkflow, BaseWorkflowConfiguration
 
-# Make sure the .env file is in the root directory of the project rl-rag-mcp/.env
-dotenv.load_dotenv(Path(__file__).parent.parent.parent / ".env")
+# Load .env file from the agent directory
+dotenv.load_dotenv(Path(__file__).parent / ".env")
 
 
 @dataclass
