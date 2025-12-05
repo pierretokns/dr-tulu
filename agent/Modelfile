@@ -1,0 +1,15 @@
+FROM ./models/DR-Tulu-8B
+
+TEMPLATE """{{ if .System }}
+{{ .System }}<|end|>
+{{ end }}{{ if .Prompt }}
+{{ .Prompt }}<|end|>
+{{ end }}{{ if .Response }}
+{{ .Response }}<|end|>
+{{ end }}"""
+
+PARAMETER stop "<|end|>"
+PARAMETER stop ""
+PARAMETER temperature 0.7
+PARAMETER num_ctx 4096
+PARAMETER num_predict 16000

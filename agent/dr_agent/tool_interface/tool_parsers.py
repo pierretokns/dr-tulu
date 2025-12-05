@@ -382,23 +382,35 @@ class UnifiedToolCallParserV20250824(ToolCallParser):
 
     def has_calls(self, text: str, tool_name: str) -> bool:
         """Check if this parser can find calls for the given tool in the text"""
-        # Look for <tool name="toolname"> patterns matching this tool
+        # Look for complete tool calls first
         for pattern in [
             r'<call_tool\s+name="' + re.escape(tool_name) + r'"[^>]*?>.*?</call_tool>',
             r'<call_tool\s+name="' + re.escape(tool_name) + r'"[^>]*?>.*?</call>',
         ]:
             if bool(re.search(pattern, text, re.DOTALL)):
                 return True
+
+        # Also look for incomplete/partial tool calls that the LLM might be generating
+        # Pattern 1: name="toolname"> (missing opening tag)
+        if re.search(r'name="' + re.escape(tool_name) + r'"[^>]*?>[^<]*', text):
+            return True
+        # Pattern 2: <call_tool name="toolname" (missing closing >)
+        if re.search(r'<call_tool\s+name="' + re.escape(tool_name) + r'"[^>]*$', text):
+            return True
+        # Pattern 3: Just the name attribute anywhere
+        if re.search(r'name="' + re.escape(tool_name) + r'"', text):
+            return True
+
         return False
 
     def parse_call(self, text: str, tool_name: str) -> Optional[ToolCallInfo]:
         """Parse the first tool call for the given tool in the text, including parameters and position"""
-        # Find <tool name="toolname" ...>content</tool> with position info
+
+        # First try to find complete tool calls
         for pattern in [
             r"<call_tool\s+([^>]*?)>(.*?)</call_tool>",
             r"<call_tool\s+([^>]*?)>(.*?)</call>",
         ]:
-
             for match in re.finditer(pattern, text, re.DOTALL):
                 attr_string = match.group(1)
                 content = match.group(2).strip()
@@ -422,6 +434,43 @@ class UnifiedToolCallParserV20250824(ToolCallParser):
                         start_pos=match.start(),
                         end_pos=match.end(),
                     )
+
+        # If no complete calls found, try to parse partial/malformed calls
+        # Pattern 1: Handle malformed calls like name="toolname">content (missing opening tag)
+        malformed_pattern = r'(name="' + re.escape(tool_name) + r'"[^>]*?>([^<]*))'
+        match = re.search(malformed_pattern, text)
+        if match:
+            # Extract the query content after the > and reconstruct proper format
+            content_part = match.group(2).strip()
+            # Try to extract query from the content
+            query_match = re.search(r'([^"]+?)(?:"\s*$|$)', content_part)
+            if query_match:
+                content = query_match.group(1).strip()
+            else:
+                content = content_part
+
+            # Find position in text
+            start_pos = match.start()
+            end_pos = match.end()
+
+            return ToolCallInfo(
+                content=content,
+                parameters={},  # No additional parameters in malformed format
+                start_pos=start_pos,
+                end_pos=end_pos,
+            )
+
+        # Pattern 2: Handle incomplete calls like <call_tool name="toolname" (missing > and content)
+        incomplete_pattern = r'(<call_tool\s+name="' + re.escape(tool_name) + r'"[^>]*)(?=>|$)'
+        match = re.search(incomplete_pattern, text)
+        if match:
+            # Return empty content for incomplete calls
+            return ToolCallInfo(
+                content="",
+                parameters={},
+                start_pos=match.start(),
+                end_pos=match.end(),
+            )
 
         return None
 

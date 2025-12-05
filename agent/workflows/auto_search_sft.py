@@ -21,8 +21,8 @@ from dr_agent.tool_interface.mcp_tools import (
 )
 from dr_agent.workflow import BaseWorkflow, BaseWorkflowConfiguration
 
-# Load .env file from the agent directory
-dotenv.load_dotenv(Path(__file__).parent / ".env")
+# Load .env file from the agent directory (one level up)
+dotenv.load_dotenv(Path(__file__).parent.parent / ".env")
 
 
 @dataclass

@@ -18,6 +18,10 @@ source .venv/bin/activate
 which python  # Should show: /path/to/agent/.venv/bin/python
 python --version  # Should match project requirements
 
+# Ensure Ollama is running and Tulu 3 Tools model is available
+ollama list  # Should show: cow/tulu3_tools:8b
+# If not available: ollama pull cow/tulu3_tools:8b
+
 # Ensure .env file exists with API keys
 cp .env.example .env
 # Edit .env with your API keys:
@@ -65,7 +69,7 @@ python -c "import litellm; print('Dependencies OK')"
 ### 2. Available Workflows
 
 #### Cloud Cost Researcher
-Specializes in comparing deployment costs across cloud providers (AWS, GCP, Azure, Digital Ocean, Cloudflare).
+Specializes in comparing deployment costs across cloud providers (AWS, GCP, Azure, Digital Ocean, Cloudflare) using Tulu 3 Tools with Ollama.
 
 ```bash
 # Start on port 8080
@@ -80,7 +84,7 @@ curl -X POST http://localhost:8080/chat/stream \
 ```
 
 #### General Research (Auto Search)
-General purpose search and research workflow.
+General purpose search and research workflow using Tulu 3 Tools with Ollama.
 
 ```bash
 # Start on port 8080

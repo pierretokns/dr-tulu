@@ -1,15 +1,16 @@
-tool_parser: "v20250824"
+# Configuration for DR-Tulu with serper.dev integration
+tool_parser: v20250824
 
-# Client config for the SearchAgent - Using Tulu 3 Tools via Ollama
+# Use Tulu 3 Tools via Ollama server
+search_tool_name: "serper"
 search_agent_base_url: "http://localhost:11434/v1"
 search_agent_model_name: "cow/tulu3_tools:8b"
 search_agent_tokenizer_name: "cow/tulu3_tools:8b"
 search_agent_api_key: "ollama-dummy-key"
 search_agent_max_tokens: 16000
-search_agent_temperature: 1.0
+search_agent_temperature: 0.7
 search_agent_max_tool_calls: 10
 
-# Client config for the browse/reader agent (general model)
 use_browse_agent: false
 browse_agent_base_url: "http://localhost:11434/v1"
 browse_agent_model_name: "cow/tulu3_tools:8b"
@@ -18,12 +19,21 @@ browse_agent_api_key: "ollama-dummy-key"
 browse_agent_max_tokens: 16000
 browse_agent_temperature: 0.3
 
-# Search tool configuration
-number_documents_to_search: 10
-search_timeout: 60
+# MCP transport configuration
+mcp_transport_type: "StreamableHttpTransport"
+mcp_executable: null
+mcp_port: 8000
 
-# Browse tool configuration
+# Tool configuration
+number_documents_to_search: 10
+search_timeout: 180
 browse_tool_name: "jina"
-browse_timeout: 60
+browse_timeout: 10
 browse_max_pages_to_fetch: 10
 browse_context_char_length: 6000
+
+crawl4ai_use_docker_version: false
+crawl4ai_use_ai2_config: false
+
+# Prompt configuration - use v20250824 for best tool calling support
+prompt_version: v20250824
