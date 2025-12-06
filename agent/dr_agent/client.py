@@ -2,12 +2,14 @@ import asyncio
 import json
 import os
 import re
+import sys
 import time
 import warnings
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -185,8 +187,21 @@ class LLMToolClient:
             "coral",  # Cohere
         ]
 
+        # Ollama model patterns (local models that can use native tool calling)
+        ollama_patterns = [
+            "cow/tulu",
+            "tulu",
+            "llama",
+            "mistral",
+            "mixtral",
+            "qwen",
+            "deepseek",
+            "phi-",
+            "gemma",
+        ]
+
         all_commercial_patterns = (
-            openai_patterns + claude_patterns + commercial_patterns
+            openai_patterns + claude_patterns + commercial_patterns + ollama_patterns
         )
         # If a base_url is provided, assume we're talking to a commercial/OpenAI-compatible
         # API (e.g., Ollama, LM Studio) and use the commercial API code path.
@@ -869,11 +884,13 @@ class LLMToolClient:
     ) -> GenerateWithToolsOutput:
         """Generate response using native OpenAI-style tool calling via litellm"""
 
-        # Validate model supports native tool calling (OpenAI for now)
+        # Validate model supports native tool calling (commercial APIs and Ollama)
+        # The check now allows Ollama models since they provide OpenAI-compatible tool calling
         if not self._is_commercial_api_model(self.model_name):
             raise ValueError(
-                f"Native tool calling mode currently only supports commercial API models (OpenAI, Claude, etc.). "
-                f"Model '{self.model_name}' appears to be a self-hosted model. Use tool_calling_mode='parser' instead."
+                f"Native tool calling mode currently only supports models that provide OpenAI-compatible APIs. "
+                f"Model '{self.model_name}' appears to be a self-hosted model without OpenAI-compatible tool calling. "
+                f"Use tool_calling_mode='parser' instead."
             )
 
         # Convert to messages format if needed
