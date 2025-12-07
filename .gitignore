@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+.claude/
+.env.ollama
+.cache-marsh.local/diskcache/cache.db
+.cache-marsh.local/diskcache/cache.db-shm
+.cache-marsh.local/diskcache/cache.db-wal

@@ -52,6 +52,7 @@ dependencies = [
     "omegaconf",
     "datasets",
     "retry",
+    "openai",
 ]
 
 [project.optional-dependencies]

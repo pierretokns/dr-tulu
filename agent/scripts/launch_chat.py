@@ -460,7 +460,9 @@ Examples:
                     print(f"   CUDA_VISIBLE_DEVICES={browse_gpu} vllm serve {browse_model} --port {port} --dtype auto --max-model-len 40960")
     
     # Build command for interactive_auto_search.py
-    cmd = [sys.executable, "scripts/interactive_auto_search.py", "--config", str(resolved_config_path)]
+    # Use the agent directory's scripts path for the interactive entrypoint
+    interactive_script = str(agent_dir / "scripts" / "interactive_auto_search.py")
+    cmd = [sys.executable, interactive_script, "--config", str(resolved_config_path)]
     
     if args.dataset_name:
         cmd.extend(["--dataset-name", args.dataset_name])

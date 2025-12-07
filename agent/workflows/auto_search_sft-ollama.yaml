@@ -1,0 +1,35 @@
+tool_parser: "v20250824"
+
+# Ollama-specific workflow for SearchAgent (uses Ollama's OpenAI-compatible API)
+# This workflow is a shallow clone of `auto_search_sft-oai.yaml` but points
+# model names to the Ollama-registered model `tulu3_tools`.
+# Usage: source .env.ollama && python run_with_ollama.py --query "..." --tools
+
+# Client config for the SearchAgent (Ollama model)
+search_agent_model_name: "hf.co/bartowski/allenai_Llama-3.1-Tulu-3.1-8B-GGUF:Q6_K_L"
+search_agent_api_key: ${oc.env:OPENAI_API_KEY}   # .env.ollama sets OPENAI_API_KEY=ollama
+search_agent_max_tokens: 32000
+search_agent_temperature: 0.7
+search_agent_max_tool_calls: 5
+
+# Client config for the browse/reader agent (general model)
+use_browse_agent: false
+browse_agent_model_name: "hf.co/bartowski/allenai_Llama-3.1-Tulu-3.1-8B-GGUF:Q6_K_L"
+browse_agent_api_key: ${oc.env:OPENAI_API_KEY}
+browse_agent_max_tokens: 32000
+browse_agent_temperature: 0.7
+
+# Search tool configuration
+number_documents_to_search: 10
+search_timeout: 60
+
+# Browse tool configuration
+browse_tool_name: "jina"
+browse_timeout: 60
+browse_max_pages_to_fetch: 10
+browse_context_char_length: 6000
+
+# Notes:
+# - Ensure Ollama is running: `ollama serve`
+# - Ensure the model `tulu3_tools` is registered in Ollama (see `setup_tulu3_ollama_v2.sh`)
+# - Source `.env.ollama` to set `OPENAI_API_KEY=ollama` and `OLLAMA_BASE_URL` before running
