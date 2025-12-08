@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -548,15 +549,17 @@ class AutoReasonSearchWorkflow(BaseWorkflow):
 
             
             if tool_output.tool_name in ["snippet_search", "google_search"]:
-                if hasattr(tool_output, 'documents') and tool_output.documents:
+                # Check if it's a DocumentToolOutput (has documents list)
+                if isinstance(tool_output, DocumentToolOutput) and tool_output.documents:
                     searched_links.extend(
                         [document.url for document in tool_output.documents]
                     )
-                elif hasattr(tool_output, 'output') and isinstance(tool_output.output, list):
-                    # Handle native tool calling output format
-                    for item in tool_output.output:
-                        if isinstance(item, dict) and 'url' in item:
-                            searched_links.append(item['url'])
+                # Handle native tool calling output (regular ToolOutput)
+                elif hasattr(tool_output, 'output') and tool_output.output:
+                    # Try to parse URLs from the output string
+                    url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
+                    urls = re.findall(url_pattern, tool_output.output)
+                    searched_links.extend(urls)
 
             if tool_output.tool_name == "browse_webpage":
                 if isinstance(self.composed_browse_tool, ChainedTool):
@@ -569,14 +572,18 @@ class AutoReasonSearchWorkflow(BaseWorkflow):
                             if document.url:
                                 browsed_links.append(document.url)
                 else:
-                    if hasattr(tool_output, "documents"):
+                    # Check if it's a DocumentToolOutput
+                    if isinstance(tool_output, DocumentToolOutput) and tool_output.documents:
                         for document in tool_output.documents:
                             if document.url:
                                 browsed_links.append(document.url)
                     else:
-                        print(
-                            f"Warning: browse_webpage tool output has no documents: {tool_output}"
-                        )
+                        # For native tool calling, try to extract URL from output
+                        if hasattr(tool_output, 'output') and tool_output.output:
+                            url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
+                            urls = re.findall(url_pattern, tool_output.output)
+                            if urls:
+                                browsed_links.extend(urls)
 
         browsed_links = list(set(browsed_links))
         searched_links = list(set(searched_links))

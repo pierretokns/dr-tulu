@@ -1029,25 +1029,32 @@ class LLMToolClient:
                         )
                         tool_calls_made.append(error_output)
                     else:
-                        # Wrap successful tool output in ToolOutput object
-                        formatted_output = tool._format_output(tool_output)
-                        tool_output_obj = ToolOutput(
-                            output=formatted_output,
-                            error="",
-                            called=True,
-                            timeout=False,
-                            runtime=0,
-                            call_id=tool_call.id,
-                            raw_output={"result": tool_output} if not isinstance(tool_output, (dict, list)) else tool_output,
-                            tool_name=function_name,
-                        )
-                        tool_calls_made.append(tool_output_obj)
+                        # Preserve the original tool output if it's already a ToolOutput
+                        if isinstance(tool_output, ToolOutput):
+                            # Update the call_id and other fields if needed
+                            tool_output.call_id = tool_call.id
+                            tool_output.tool_name = function_name
+                            tool_output_str = tool._format_output(tool_output)
+                        else:
+                            # Wrap non-ToolOutput results
+                            tool_output_str = tool._format_output(tool_output)
+                            tool_output = ToolOutput(
+                                output=tool_output_str,
+                                error="",
+                                called=True,
+                                timeout=False,
+                                runtime=0,
+                                call_id=tool_call.id,
+                                raw_output={"result": tool_output} if not isinstance(tool_output, (dict, list)) else tool_output,
+                                tool_name=function_name,
+                            )
+
+                        tool_calls_made.append(tool_output)
                         tool_call_count += 1
 
                         # Get output content
                         # If you change this line, please do check the following lines that
                         # collectes and generates the generated_text.
-                        tool_output_str = formatted_output
 
                     # Add tool result to messages if include_tool_results
                     if include_tool_results:
