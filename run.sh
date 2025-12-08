@@ -78,9 +78,16 @@ if [ -z "${OPENAI_API_KEY:-}" ]; then
   echo "Exported OPENAI_API_KEY=ollama"
 fi
 
-echo "Launching native UI (agent/scripts/launch_chat.py) with model: $MODEL"
+echo "Launching Web UI with model: $MODEL"
 
 # Use the Ollama-specific workflow we added under agent/workflows
-CONFIG_PATH="agent/workflows/auto_search_sft-ollama.yaml"
+CONFIG_PATH="workflows/auto_search_sft-ollama.yaml"
 
-python3 agent/scripts/launch_chat.py --config "$CONFIG_PATH" --model "$MODEL" --skip-checks
+# Install UI dependencies if needed
+if ! python3 -c "import fastapi, uvicorn" 2>/dev/null; then
+    echo "Installing UI dependencies..."
+    cd agent && python3 -m pip install -e ".[ui]" && cd ..
+fi
+
+# Run the web UI server
+cd agent && python3 -m workflows.auto_search_sft serve --config "$CONFIG_PATH" --host 0.0.0.0 --port 7860 --verbose && cd ..

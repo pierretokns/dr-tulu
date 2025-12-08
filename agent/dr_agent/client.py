@@ -160,6 +160,9 @@ class LLMToolClient:
         Commercial API models (OpenAI, Claude, etc.) use chat completion APIs and don't need tokenizers.
         Self-hosted models (vLLM) use text completion APIs and benefit from tokenizers.
         """
+        # Check if using Ollama (based on base_url)
+        if self.base_url and "ollama" in self.base_url.lower():
+            return True
         # OpenAI model patterns
         openai_patterns = [
             "gpt-",

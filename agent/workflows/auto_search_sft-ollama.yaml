@@ -6,6 +6,7 @@ tool_parser: "v20250824"
 # Usage: source .env.ollama && python run_with_ollama.py --query "..." --tools
 
 # Client config for the SearchAgent (Ollama model)
+search_agent_base_url: ${oc.env:OLLAMA_BASE_URL}  # Ollama endpoint
 search_agent_model_name: "hf.co/bartowski/allenai_Llama-3.1-Tulu-3.1-8B-GGUF:Q6_K_L"
 search_agent_api_key: ${oc.env:OPENAI_API_KEY}   # .env.ollama sets OPENAI_API_KEY=ollama
 search_agent_max_tokens: 32000
@@ -14,6 +15,7 @@ search_agent_max_tool_calls: 5
 
 # Client config for the browse/reader agent (general model)
 use_browse_agent: false
+browse_agent_base_url: ${oc.env:OLLAMA_BASE_URL}  # Ollama endpoint
 browse_agent_model_name: "hf.co/bartowski/allenai_Llama-3.1-Tulu-3.1-8B-GGUF:Q6_K_L"
 browse_agent_api_key: ${oc.env:OPENAI_API_KEY}
 browse_agent_max_tokens: 32000
