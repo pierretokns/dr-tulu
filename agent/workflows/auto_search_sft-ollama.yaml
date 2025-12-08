@@ -1,4 +1,6 @@
 tool_parser: "v20250824"
+prompt_version: "v20250907"  # Use v20250907 for native tool calling
+tool_calling_mode: "native"  # Use native tool calling for tulu3_tools model
 
 # Ollama-specific workflow for SearchAgent (uses Ollama's OpenAI-compatible API)
 # This workflow is a shallow clone of `auto_search_sft-oai.yaml` but points
@@ -7,7 +9,7 @@ tool_parser: "v20250824"
 
 # Client config for the SearchAgent (Ollama model)
 search_agent_base_url: ${oc.env:OLLAMA_BASE_URL}  # Ollama endpoint
-search_agent_model_name: "hf.co/bartowski/allenai_Llama-3.1-Tulu-3.1-8B-GGUF:Q6_K_L"
+search_agent_model_name: "cow/tulu3_tools:8b"
 search_agent_api_key: ${oc.env:OPENAI_API_KEY}   # .env.ollama sets OPENAI_API_KEY=ollama
 search_agent_max_tokens: 32000
 search_agent_temperature: 0.7

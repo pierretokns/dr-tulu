@@ -613,9 +613,18 @@ def chat(
     if "browse_timeout" not in overrides:
         overrides["browse_timeout"] = 10
     
-    # Set prompt version for CLI agent
+    # Set prompt version for CLI agent (only if not already set in config)
     if "prompt_version" not in overrides:
-        overrides["prompt_version"] = "cli"
+        # Load config to check if prompt_version is already specified
+        from dr_agent.workflow import load_config
+        try:
+            loaded_config = load_config(config)
+            if "prompt_version" not in loaded_config:
+                # Only set to 'cli' if the config doesn't already specify a prompt version
+                overrides["prompt_version"] = "cli"
+        except:
+            # If config loading fails, default to 'cli'
+            overrides["prompt_version"] = "cli"
 
     # Create workflow
     try:

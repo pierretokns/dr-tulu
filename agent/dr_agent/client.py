@@ -161,7 +161,7 @@ class LLMToolClient:
         Self-hosted models (vLLM) use text completion APIs and benefit from tokenizers.
         """
         # Check if using Ollama (based on base_url)
-        if self.base_url and "ollama" in self.base_url.lower():
+        if self.base_url and ("ollama" in self.base_url.lower() or "localhost:11434" in self.base_url):
             return True
         # OpenAI model patterns
         openai_patterns = [
@@ -1029,14 +1029,25 @@ class LLMToolClient:
                         )
                         tool_calls_made.append(error_output)
                     else:
-                        # Track successful tool call
-                        tool_calls_made.append(tool_output)
+                        # Wrap successful tool output in ToolOutput object
+                        formatted_output = tool._format_output(tool_output)
+                        tool_output_obj = ToolOutput(
+                            output=formatted_output,
+                            error="",
+                            called=True,
+                            timeout=False,
+                            runtime=0,
+                            call_id=tool_call.id,
+                            raw_output={"result": tool_output} if not isinstance(tool_output, (dict, list)) else tool_output,
+                            tool_name=function_name,
+                        )
+                        tool_calls_made.append(tool_output_obj)
                         tool_call_count += 1
 
                         # Get output content
                         # If you change this line, please do check the following lines that
                         # collectes and generates the generated_text.
-                        tool_output_str = tool._format_output(tool_output)
+                        tool_output_str = formatted_output
 
                     # Add tool result to messages if include_tool_results
                     if include_tool_results:
@@ -1154,8 +1165,14 @@ class LLMToolClient:
         config = self.generation_config
 
         # Build parameters
+        # For custom OpenAI-compatible endpoints (like Ollama), prefix with openai/
+        model_name = self.model_name
+        if self.base_url and ("localhost:11434" in self.base_url or "ollama" in self.base_url.lower()):
+            if not model_name.startswith("openai/"):
+                model_name = f"openai/{model_name}"
+
         params = {
-            "model": self.model_name,
+            "model": model_name,
             "messages": messages,
             "tools": tools,
             "tool_choice": "auto",

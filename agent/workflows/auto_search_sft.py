@@ -10,6 +10,7 @@ import dotenv
 from dr_agent.agent_interface import BaseAgent
 from dr_agent.client import DocumentToolOutput, LLMToolClient, ToolOutput
 from dr_agent.shared_prompts import UNIFIED_TOOL_CALLING_STRUCTURED_PROMPTS
+from dr_agent.shared_prompts.native_tool_calling import STRUCTURED_PROMPTS as NATIVE_TOOL_CALLING_PROMPTS
 from dr_agent.tool_interface.chained_tool import ChainedTool
 from dr_agent.tool_interface.mcp_tools import (
     BaseTool,
@@ -70,6 +71,7 @@ Can you clean the raw webpage text and convert it into a more readable format? Y
 @dataclass
 class SearchAgent(BaseAgent):
     prompt_version: str = "v20250907"
+    tool_calling_mode: str = "parser"  # "parser" or "native"
 
     def prompt(
         self,
@@ -78,7 +80,16 @@ class SearchAgent(BaseAgent):
         history: Optional[List[Dict[str, str]]] = None,
     ) -> str:
 
-        PROMPT = UNIFIED_TOOL_CALLING_STRUCTURED_PROMPTS[self.prompt_version]
+        # Use native tool calling prompts if in native mode
+        if self.tool_calling_mode == "native":
+            if self.prompt_version not in NATIVE_TOOL_CALLING_PROMPTS:
+                print(f"ERROR: prompt_version '{self.prompt_version}' not found in NATIVE_TOOL_CALLING_PROMPTS. Available: {list(NATIVE_TOOL_CALLING_PROMPTS.keys())}")
+                print(f"Falling back to unified prompts")
+                PROMPT = UNIFIED_TOOL_CALLING_STRUCTURED_PROMPTS[self.prompt_version]
+            else:
+                PROMPT = NATIVE_TOOL_CALLING_PROMPTS[self.prompt_version]
+        else:
+            PROMPT = UNIFIED_TOOL_CALLING_STRUCTURED_PROMPTS[self.prompt_version]
         system_prompt = PROMPT["system_prompt"]
 
         if dataset_name in [
@@ -160,10 +171,15 @@ class SearchAgent(BaseAgent):
 @dataclass
 class AnswerAgent(BaseAgent):
     prompt_version: str = "v20250907"
+    tool_calling_mode: str = "parser"  # "parser" or "native"
 
     def prompt(self, question: str, history: str, dataset_name: str) -> str:
 
-        PROMPT = UNIFIED_TOOL_CALLING_STRUCTURED_PROMPTS[self.prompt_version]
+        # Use native tool calling prompts if in native mode
+        if self.tool_calling_mode == "native":
+            PROMPT = NATIVE_TOOL_CALLING_PROMPTS[self.prompt_version]
+        else:
+            PROMPT = UNIFIED_TOOL_CALLING_STRUCTURED_PROMPTS[self.prompt_version]
         if dataset_name in [
             "2wiki",
             "simpleqa",
@@ -256,6 +272,7 @@ class AutoReasonSearchWorkflow(BaseWorkflow):
     class Configuration(BaseWorkflowConfiguration):
 
         tool_parser: str
+        tool_calling_mode: str = "parser"  # "parser" or "native"
 
         search_tool_name: str = "serper"
 
@@ -448,10 +465,12 @@ class AutoReasonSearchWorkflow(BaseWorkflow):
                 client=client,
                 tools=[self.search_tool, self.search_tool2, self.composed_browse_tool],
                 prompt_version=cfg.prompt_version,
+                tool_calling_mode=cfg.tool_calling_mode,
             )
             self.answer_agent = AnswerAgent(
                 client=client,
                 prompt_version=cfg.prompt_version,
+                tool_calling_mode=cfg.tool_calling_mode,
             )
 
     async def __call__(
@@ -507,6 +526,7 @@ class AutoReasonSearchWorkflow(BaseWorkflow):
             max_tool_calls=cfg.search_agent_max_tool_calls,
             verbose=verbose,
             on_step_callback=step_callback,
+            tool_calling_mode=cfg.tool_calling_mode,
         )
 
         if search_callback:
@@ -526,10 +546,17 @@ class AutoReasonSearchWorkflow(BaseWorkflow):
                 failed_tool_calls += 1
                 failed_tool_call_errors.append(tool_output.error)
 
+            
             if tool_output.tool_name in ["snippet_search", "google_search"]:
-                searched_links.extend(
-                    [document.url for document in tool_output.documents]
-                )
+                if hasattr(tool_output, 'documents') and tool_output.documents:
+                    searched_links.extend(
+                        [document.url for document in tool_output.documents]
+                    )
+                elif hasattr(tool_output, 'output') and isinstance(tool_output.output, list):
+                    # Handle native tool calling output format
+                    for item in tool_output.output:
+                        if isinstance(item, dict) and 'url' in item:
+                            searched_links.append(item['url'])
 
             if tool_output.tool_name == "browse_webpage":
                 if isinstance(self.composed_browse_tool, ChainedTool):
@@ -575,6 +602,7 @@ class AutoReasonSearchWorkflow(BaseWorkflow):
             temperature=cfg.search_agent_temperature,
             verbose=verbose,
             on_step_callback=step_callback,
+            tool_calling_mode=cfg.tool_calling_mode,
         )
 
         if verbose:

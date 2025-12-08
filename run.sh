@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Function to cleanup MCP server
+cleanup_mcp() {
+    if [ -f /tmp/mcp_server.pid ]; then
+        MCP_PID=$(cat /tmp/mcp_server.pid)
+        if kill -0 $MCP_PID 2>/dev/null; then
+            echo "Stopping MCP server (PID: $MCP_PID)..."
+            kill $MCP_PID 2>/dev/null || true
+        fi
+        rm -f /tmp/mcp_server.pid
+    fi
+}
+
+# Set trap to cleanup on exit
+trap cleanup_mcp EXIT
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
@@ -72,22 +87,36 @@ else
   echo "Detected Ollama model: $MODEL"
 fi
 
+# Override to use the correct tool-capable model
+MODEL="cow/tulu3_tools:8b"
+echo "Using model: $MODEL"
+
 # Ensure OPENAI_API_KEY is set for OpenAI-compatible adapter
 if [ -z "${OPENAI_API_KEY:-}" ]; then
   export OPENAI_API_KEY="ollama"
   echo "Exported OPENAI_API_KEY=ollama"
 fi
 
-echo "Launching Web UI with model: $MODEL"
-
-# Use the Ollama-specific workflow we added under agent/workflows
-CONFIG_PATH="workflows/auto_search_sft-ollama.yaml"
-
-# Install UI dependencies if needed
-if ! python3 -c "import fastapi, uvicorn" 2>/dev/null; then
-    echo "Installing UI dependencies..."
-    cd agent && python3 -m pip install -e ".[ui]" && cd ..
+# Check if MCP server is running, start it if not
+MCP_PORT=8000
+if ! curl -s http://localhost:${MCP_PORT}/health > /dev/null 2>&1; then
+    echo "🚀 Starting MCP server on port ${MCP_PORT}..."
+    python -m dr_agent.mcp_backend.main --port ${MCP_PORT} > /tmp/mcp_server_${MCP_PORT}.log 2>&1 &
+    MCP_PID=$!
+    echo "MCP server started with PID: $MCP_PID"
+    echo "Logs: /tmp/mcp_server_${MCP_PORT}.log"
+    # Give it a moment to start
+    sleep 2
+    # Store PID to clean up later
+    echo $MCP_PID > /tmp/mcp_server.pid
+else
+    echo "✅ MCP server already running on port ${MCP_PORT}"
 fi
 
-# Run the web UI server
-cd agent && python3 -m workflows.auto_search_sft serve --config "$CONFIG_PATH" --host 0.0.0.0 --port 7860 --verbose && cd ..
+echo "Launching native UI (agent/scripts/launch_chat.py) with model: $MODEL"
+
+# Use the Ollama-specific workflow we added under agent/workflows
+CONFIG_PATH="agent/workflows/auto_search_sft-ollama.yaml"
+
+# Run the chat script
+python3 agent/scripts/launch_chat.py --config "$CONFIG_PATH" --model "$MODEL" --skip-checks
