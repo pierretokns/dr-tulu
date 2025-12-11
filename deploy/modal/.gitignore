@@ -1,0 +1,12 @@
+# Never commit secrets
+.env
+.env.*
+*.secret
+secrets.json
+
+# Modal local files
+.modal/
+
+# Python
+__pycache__/
+*.pyc
