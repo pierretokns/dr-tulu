@@ -408,7 +408,7 @@ async def chat_loop(
                     final_answer_text = current_segment_text  # Store final answer for bibliography
                 else:
                     thinking_text = current_segment_text  # Store thinking text for display
-            
+
             # Variables for bibliography
             cited_snippet_ids = []
             id_mapping = {}

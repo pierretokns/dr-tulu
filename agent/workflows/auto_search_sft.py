@@ -181,7 +181,11 @@ class AnswerAgent(BaseAgent):
             PROMPT = NATIVE_TOOL_CALLING_PROMPTS[self.prompt_version]
         else:
             PROMPT = UNIFIED_TOOL_CALLING_STRUCTURED_PROMPTS[self.prompt_version]
-        if dataset_name in [
+
+        # Default to long_form if no dataset is specified
+        if not dataset_name:
+            instruction_field_name = "long_form"
+        elif dataset_name in [
             "2wiki",
             "simpleqa",
             "browsecomp",
@@ -195,7 +199,7 @@ class AnswerAgent(BaseAgent):
         elif dataset_name in ["healthbench", "deep_research_bench", "researchqa"]:
             instruction_field_name = "short_form"
         else:
-            raise ValueError(f"Invalid dataset name: {dataset_name}")
+            instruction_field_name = "long_form"  # Default to long_form for unknown datasets
 
         return [
             {
